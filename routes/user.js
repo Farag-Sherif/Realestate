@@ -59,6 +59,21 @@ userRouter.delete("/api/remove-from-cart/:id", auth, async (req, res) => {
   }
 });
 
+userRouter.get("/api/cart", auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user).populate("cart.product");
+    const cart = user.cart.map((item) => ({
+      product: item.product,
+      quantity: item.quantity,
+      images: item.images,
+      totalPrice: item.product.price * item.quantity,
+    }));
+    const grandTotal = cart.reduce((sum, item) => sum + item.totalPrice, 0);
+    res.json({ cart, grandTotal });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 // save user address
 userRouter.post("/api/save-user-address", auth, async (req, res) => {
   try {
@@ -72,40 +87,75 @@ userRouter.post("/api/save-user-address", auth, async (req, res) => {
   }
 });
 
-// order product
-userRouter.post("/api/order", auth, async (req, res) => {
-  try {
-    const { cart, totalPrice, address } = req.body;
-    let products = [];
+const mongoose = require("mongoose");
 
-    for (let i = 0; i < cart.length; i++) {
-      let product = await Product.findById(cart[i].product._id);
-      if (product.quantity >= cart[i].quantity) {
-        product.quantity -= cart[i].quantity;
-        products.push({ product, quantity: cart[i].quantity });
-        await product.save();
-      } else {
-        return res
-          .status(400)
-          .json({ msg: `${product.name} is out of stock!` });
-      }
+userRouter.post("/api/order", auth, async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { cart, totalPrice, address, phone } = req.body;
+
+    // Input validation
+    if (!cart || !totalPrice || !address || !phone) {
+      return res.status(400).json({ error: "All fields are required." });
     }
 
-    let user = await User.findById(req.user);
-    user.cart = [];
-    user = await user.save();
+    let products = [];
 
-    let order = new Order({
+    // Process each item in the cart
+    for (let i = 0; i < cart.length; i++) {
+      const product = await Product.findById(cart[i].product._id).session(session);
+      if (!product) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(404).json({ error: `Product not found: ${cart[i].product._id}` });
+      }
+
+      if (product.quantity < cart[i].quantity) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({ error: `${product.name} is out of stock!` });
+      }
+
+      // Reduce product quantity
+      product.quantity -= cart[i].quantity;
+      await product.save({ session });
+
+      // Add product to the order
+      products.push({ product, quantity: cart[i].quantity });
+    }
+
+    // Clear the user's cart
+    const user = await User.findById(req.user).session(session);
+    user.cart = [];
+    await user.save({ session });
+
+    // Create the order
+    const order = new Order({
       products,
       totalPrice,
       address,
+      phone,
       userId: req.user,
       orderedAt: new Date().getTime(),
     });
-    order = await order.save();
-    res.json(order);
+
+    await order.save({ session });
+
+    // Commit the transaction
+    await session.commitTransaction();
+    session.endSession();
+
+    // Return success response
+    res.status(201).json({ message: "Order placed successfully.", order });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    // Abort the transaction on error
+    await session.abortTransaction();
+    session.endSession();
+
+    console.error("Order error:", e.message);
+    res.status(500).json({ error: "An error occurred while placing the order." });
   }
 });
 

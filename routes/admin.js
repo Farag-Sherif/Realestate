@@ -116,3 +116,19 @@ async function fetchCategoryWiseProduct(category) {
 }
 
 module.exports = adminRouter;
+
+
+// to get all users 
+const User = require("../models/user");
+
+// Get all users
+adminRouter.get("/admin/get-users", admin, async (req, res) => {
+  try {
+    const users = await User.find({});
+    res.json(users);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+module.exports = adminRouter;
