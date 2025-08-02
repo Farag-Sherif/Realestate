@@ -7,13 +7,14 @@ const productRouter = require("./routes/product");
 const userRouter = require("./routes/user");
 require('dotenv').config();
 
+// INIT
+const PORT = 5000 || process.env.PORT;
 const app = express();
+const DB = `${process.env.dbUri}`;
 
 // Middleware
 app.use(express.json());
-app.use(cors({
-  origin: 'https://book-store-react-js.netlify.app' // حدد المنشأ الخاص بك
-}));
+app.use(cors());
 
 // Routes
 app.use(authRouter);
@@ -21,9 +22,9 @@ app.use(adminRouter);
 app.use(productRouter);
 app.use(userRouter);
 
-// Connection to MongoDB
+// Connections
 mongoose
-  .connect(process.env.dbUri)
+  .connect(DB)
   .then(() => {
     console.log("Connection Successful");
   })
@@ -31,10 +32,6 @@ mongoose
     console.log(e);
   });
 
-// Export for Railway or other serverless environments
-module.exports = app;
-
-// Local development only (remove or comment for production)
-// app.listen(5000, "0.0.0.0", () => {
-//   console.log(`connected at port 5000`);
-// });
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`connected at port ${PORT}`);
+});
