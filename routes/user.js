@@ -115,7 +115,7 @@ userRouter.post("/api/order", auth, async (req, res) => {
       if (product.quantity < cart[i].quantity) {
         await session.abortTransaction();
         session.endSession();
-        return res.status(400).json({ error: `${product.name} is out of stock!` });
+        return res.status(400).json({ error: `${product.title} is out of stock!` });
       }
 
       // Reduce product quantity

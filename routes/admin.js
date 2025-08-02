@@ -8,15 +8,36 @@ const { PromiseProvider } = require("mongoose");
 // Add product
 adminRouter.post("/admin/add-product", admin, async (req, res) => {
   try {
-    const { name, description, images, quantity, price, category } = req.body;
-    let product = new Product({
-      name,
+    const {
+      title,
       description,
       images,
-      quantity,
       price,
+      location,
+      type,
+      bedrooms,
+      bathrooms,
+      area,
       category,
+      quantity,
+      status,
+    } = req.body;
+
+    let product = new Product({
+      title,
+      description,
+      images,
+      price,
+      location,
+      type,
+      bedrooms,
+      bathrooms,
+      area,
+      category,
+      quantity,
+      status,
     });
+
     product = await product.save();
     res.json(product);
   } catch (e) {
@@ -71,26 +92,19 @@ adminRouter.get("/admin/analytics", admin, async (req, res) => {
     const orders = await Order.find({});
     let totalEarnings = 0;
 
-    for (let i = 0; i < orders.length; i++) {
-      for (let j = 0; j < orders[i].products.length; j++) {
-        totalEarnings +=
-          orders[i].products[j].quantity * orders[i].products[j].product.price;
+    for (let order of orders) {
+      for (let p of order.products) {
+        totalEarnings += p.quantity * p.product.price;
       }
     }
-    // CATEGORY WISE ORDER FETCHING
-    let mobileEarnings = await fetchCategoryWiseProduct("Mobiles");
-    let essentialEarnings = await fetchCategoryWiseProduct("Essentials");
-    let applianceEarnings = await fetchCategoryWiseProduct("Appliances");
-    let booksEarnings = await fetchCategoryWiseProduct("Books");
-    let fashionEarnings = await fetchCategoryWiseProduct("Fashion");
+
+    let apartmentEarnings = await fetchTypeWiseEarnings("Apartment");
+    let villaEarnings = await fetchTypeWiseEarnings("Villa");
 
     let earnings = {
       totalEarnings,
-      mobileEarnings,
-      essentialEarnings,
-      applianceEarnings,
-      booksEarnings,
-      fashionEarnings,
+      apartmentEarnings,
+      villaEarnings,
     };
 
     res.json(earnings);
@@ -99,17 +113,15 @@ adminRouter.get("/admin/analytics", admin, async (req, res) => {
   }
 });
 
-async function fetchCategoryWiseProduct(category) {
+async function fetchTypeWiseEarnings(type) {
   let earnings = 0;
   let categoryOrders = await Order.find({
-    "products.product.category": category,
+    "products.product.type": type,
   });
 
-  for (let i = 0; i < categoryOrders.length; i++) {
-    for (let j = 0; j < categoryOrders[i].products.length; j++) {
-      earnings +=
-        categoryOrders[i].products[j].quantity *
-        categoryOrders[i].products[j].product.price;
+  for (let order of categoryOrders) {
+    for (let p of order.products) {
+      earnings += p.quantity * p.product.price;
     }
   }
   return earnings;
